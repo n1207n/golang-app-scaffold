@@ -2,36 +2,37 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yourusername/yourprojectname/config" // Ensure this matches your go.mod module name
-	// TODO: Import repository, service, handler packages once created
+	"github.com/yourusername/yourprojectname/config"
+
 	// "github.com/yourusername/yourprojectname/internal/handler"
-	// "github.com/yourusername/yourprojectname/internal/repository"
+	"github.com/yourusername/yourprojectname/internal/repository"
 	// "github.com/yourusername/yourprojectname/internal/service"
-	// "github.com/yourusername/yourprojectname/db/sqlc" // SQLC generated code
 )
 
 func main() {
 	// Load configuration
-	cfg, err := config.LoadConfig(".env")
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	log.Printf("Configuration loaded successfully. App Env: %s, Server: %s", cfg.AppEnv, cfg.HTTPServerAddress)
+	log.Printf("Configuration loaded successfully. App Env: %s, Server: %d", cfg.AppEnv, cfg.AppPort)
 
 	// Initialize Database connection
-	dbPool, err := initDB(cfg.PostgresURL)
+	dbPool, err := initDB(cfg.DbURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -39,21 +40,20 @@ func main() {
 	log.Println("Database connection pool established.")
 
 	// Initialize Redis client
-	rdb, err := initRedis(cfg)
+	rdb, err := initRedis(cfg.RedisURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize Redis: %v", err)
 	}
 	defer rdb.Close()
 	log.Println("Redis client initialized.")
 
-	// TODO: Initialize SQLC store (example, adjust as per your sqlc setup)
-	// store := db.NewStore(dbPool) // Assuming NewStore takes *pgxpool.Pool
-
-	// TODO: Initialize Repositories
-	// userRepository := repository.NewUserRepository(store, rdb) // Example
+	// Initialize Repositories
+	userRepo := repository.NewDBUserRepository(sqlcQuerier)
+	log.Println("User repository initialized.")
 
 	// TODO: Initialize Services
-	// userService := service.NewUserService(userRepository) // Example
+	// userService := service.NewUserService(userRepo) // Example
+	// log.Println("User service initialized.")
 
 	// Initialize Gin router
 	if cfg.AppEnv == "production" {
@@ -78,18 +78,18 @@ func main() {
 
 	// Start HTTP server
 	srv := &http.Server{
-		Addr:    cfg.HTTPServerAddress,
+		Addr:    strconv.Itoa(cfg.AppPort),
 		Handler: router,
 	}
 
 	go func() {
-		log.Printf("Server listening on %s", cfg.HTTPServerAddress)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("Server listening on %d", cfg.AppPort)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %s\n", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Wait for interrupt signal to gracefully shut down the server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -105,20 +105,20 @@ func main() {
 }
 
 func initDB(databaseURL string) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(databaseURL)
+	pgxpoolCfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse database URL: %w", err)
 	}
 
 	// You can configure pool settings here, e.g.,
-	// config.MaxConns = 10
-	// config.MinConns = 2
-	// config.MaxConnLifetime = time.Hour
-	// config.MaxConnIdleTime = 30 * time.Minute
-	// config.HealthCheckPeriod = time.Minute
-	// config.ConnConfig.ConnectTimeout = 5 * time.Second
+	// pgxpool_cfg.MaxConns = 10
+	// pgxpool_cfg.MinConns = 2
+	// pgxpool_cfg.MaxConnLifetime = time.Hour
+	// pgxpool_cfg.MaxConnIdleTime = 30 * time.Minute
+	// pgxpool_cfg.HealthCheckPeriod = time.Minute
+	// pgxpool_cfg.ConnConfig.ConnectTimeout = 5 * time.Second
 
-	dbPool, err := pgxpool.NewWithConfig(context.Background(), config)
+	dbPool, err := pgxpool.NewWithConfig(context.Background(), pgxpoolCfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create connection pool: %w", err)
 	}
@@ -132,26 +132,19 @@ func initDB(databaseURL string) (*pgxpool.Pool, error) {
 	return dbPool, nil
 }
 
-func initRedis(cfg *config.Config) (*redis.Client, error) {
+func initRedis(redisURL string) (*redis.Client, error) {
 	var rdb *redis.Client
-	if cfg.RedisURL != "" { // Prefer RedisURL if available
-		opt, err := redis.ParseURL(cfg.RedisURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse Redis URL: %w", err)
-		}
-		rdb = redis.NewClient(opt)
-	} else { // Fallback to host/port if RedisURL is not set
-		rdb = redis.NewClient(&redis.Options{
-			Addr:     fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort),
-			Password: cfg.RedisPassword, // no password set if empty
-			DB:       0,                 // use default DB
-		})
+
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse Redis URL: %w", err)
 	}
+	rdb = redis.NewClient(opt)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := rdb.Ping(ctx).Result()
+	_, err = rdb.Ping(ctx).Result()
 	if err != nil {
 		rdb.Close() // Close the client if ping fails
 		return nil, fmt.Errorf("could not ping Redis: %w", err)

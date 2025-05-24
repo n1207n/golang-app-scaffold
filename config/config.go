@@ -1,43 +1,27 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
-
-	"github.com/joho/godotenv"
 )
 
 // Config holds all configuration for the application
 type Config struct {
-	AppEnv            string
-	HTTPServerAddress string
-	PostgresURL       string
-	RedisURL          string
-	RedisHost         string
-	RedisPort         string
-	RedisPassword     string
-	SecretKey         string
+	AppEnv    string
+	AppPort   int
+	DbURL     string
+	RedisURL  string
+	SecretKey string
 }
 
 // LoadConfig loads configuration from environment variables
-func LoadConfig(path string) (*Config, error) {
-	if os.Getenv("APP_ENV") != "production" { // Only load .env file if not in production
-		err := godotenv.Load(path)
-		if err != nil {
-			log.Println("Warning: .env file not found or error loading .env file:", err)
-		}
-	}
-
+func LoadConfig() (*Config, error) {
 	return &Config{
-		AppEnv:            getEnv("APP_ENV", "development"),
-		HTTPServerAddress: getEnv("HTTP_SERVER_ADDRESS", "0.0.0.0:8080"),
-		PostgresURL:       getEnv("DATABASE_URL", "postgres://user:password@localhost:5432/mydatabase?sslmode=disable"),
-		RedisURL:          getEnv("REDIS_URL", "redis://localhost:6379/0"),
-		RedisHost:         getEnv("REDIS_HOST", "localhost"),
-		RedisPort:         getEnv("REDIS_PORT", "6379"),
-		RedisPassword:     getEnv("REDIS_PASSWORD", ""),
-		SecretKey:         getEnv("SECRET_KEY", "supersecret"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		AppPort:   getEnvAsInt("APP_PORT", 8080),
+		DbURL:     getEnv("POSTGRES_URL", "postgres://user:password@db:5432/mydatabase?sslmode=disable"),
+		RedisURL:  getEnv("REDIS_URL", "redis://redis:6379/0"),
+		SecretKey: getEnv("SECRET_KEY", "supersecret"),
 	}, nil
 }
 
