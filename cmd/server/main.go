@@ -16,6 +16,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/yourusername/yourprojectname/config"
+	"github.com/yourusername/yourprojectname/db/sqlc"
 
 	// "github.com/yourusername/yourprojectname/internal/handler"
 	"github.com/yourusername/yourprojectname/internal/repository"
@@ -31,7 +32,6 @@ func main() {
 
 	log.Printf("Configuration loaded successfully. App Env: %s, Server: %d", cfg.AppEnv, cfg.AppPort)
 
-	// Initialize Database connection
 	dbPool, err := initDB(cfg.DbURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
@@ -39,7 +39,6 @@ func main() {
 	defer dbPool.Close()
 	log.Println("Database connection pool established.")
 
-	// Initialize Redis client
 	rdb, err := initRedis(cfg.RedisURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize Redis: %v", err)
@@ -47,7 +46,9 @@ func main() {
 	defer rdb.Close()
 	log.Println("Redis client initialized.")
 
-	// Initialize Repositories
+	sqlcQuerier := sqlc.New(dbPool)
+	log.Println("SQLC Querier initialized.")
+
 	userRepo := repository.NewDBUserRepository(sqlcQuerier)
 	log.Println("User repository initialized.")
 
@@ -76,7 +77,6 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	// Start HTTP server
 	srv := &http.Server{
 		Addr:    strconv.Itoa(cfg.AppPort),
 		Handler: router,
