@@ -41,40 +41,37 @@ test-integration:
 	@echo "Running integration tests..."
 	@go test -v ./... -tags=integration -coverprofile=coverage-integration.out
 
-# Apply all database migrations
 migrate-up:
-	@echo "Applying database migrations..."
-	@migrate -path db/migration -database "$${DATABASE_URL}" -verbose up
+	@echo "Applying database migrations (via Docker)..."
+	@docker compose -f $(DOCKER_COMPOSE_FILE) exec app migrate -path /app/db/migration -database "$DB_URL" -verbose up
 
-# Rollback all database migrations
 migrate-down:
-	@echo "Rolling back database migrations..."
-	@migrate -path db/migration -database "$${DATABASE_URL}" -verbose down
+	@echo "Rolling back last database migration (via Docker)..."
+	@docker compose -f $(DOCKER_COMPOSE_FILE) exec app migrate -path /app/db/migration -database "$DB_URL" -verbose down 1
 
-# Generate SQLC code
 sqlc:
-	@echo "Generating SQLC code..."
-	@sqlc generate
+	@echo "Generating SQLC code (via Docker)..."
+	@docker compose -f $(DOCKER_COMPOSE_FILE) exec app sqlc generate --path /app/sqlc.yaml
 
 # Docker commands
-DOCKER_COMPOSE_FILE=docker-compose.yml
+DOCKER_COMPOSE_FILE=compose.yml:compose.dev.yml
 DOCKER_IMAGE_NAME=yourprojectname # Change this to your desired image name
 
 docker-build:
 	@echo "Building Docker image..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) build
+	@docker compose -f $(DOCKER_COMPOSE_FILE) build
 
 docker-run:
 	@echo "Running Docker containers..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@docker compose -f $(DOCKER_COMPOSE_FILE) up -d
 
 docker-dev:
 	@echo "Running Docker containers for development (with hot-reloading)..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build app_dev
+	@docker compose -f $(DOCKER_COMPOSE_FILE) up --build app
 
 docker-stop:
 	@echo "Stopping Docker containers..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) down
+	@docker compose -f $(DOCKER_COMPOSE_FILE) down
 
 help:
 	@echo "Available targets:"
