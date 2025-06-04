@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/yourusername/yourprojectname/db/sqlc"       // 경로가 올바른지 확인
-	"github.com/yourusername/yourprojectname/internal/util" // 비밀번호 해싱용
+	"github.com/yourusername/yourprojectname/db/sqlc"
+	"github.com/yourusername/yourprojectname/internal/util"
 )
 
 // UserRepository defines methods for users table
