@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -78,7 +77,7 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:    strconv.Itoa(cfg.AppPort),
+		Addr:    fmt.Sprintf(":%d", cfg.AppPort),
 		Handler: router,
 	}
 
