@@ -17,10 +17,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/yourusername/yourprojectname/config"
 	"github.com/yourusername/yourprojectname/db/sqlc"
-
-	// "github.com/yourusername/yourprojectname/internal/handler"
+	"github.com/yourusername/yourprojectname/internal/handler"
 	"github.com/yourusername/yourprojectname/internal/repository"
-	// "github.com/yourusername/yourprojectname/internal/service"
+	app_router "github.com/yourusername/yourprojectname/internal/router"
+	"github.com/yourusername/yourprojectname/internal/service"
 )
 
 func main() {
@@ -52,9 +52,9 @@ func main() {
 	userRepo := repository.NewDBUserRepository(sqlcQuerier)
 	log.Println("User repository initialized.")
 
-	// TODO: Initialize Services
-	// userService := service.NewUserService(userRepo) // Example
-	// log.Println("User service initialized.")
+	// Initialize Services
+	userService := service.NewUserService(userRepo) // Example
+	log.Println("User service initialized.")
 
 	// Initialize Gin router
 	if cfg.AppEnv == "production" {
@@ -62,17 +62,17 @@ func main() {
 	}
 	router := gin.Default()
 
-	// TODO: Setup routes using Handlers
-	// userHandler := handler.NewUserHandler(userService)
-	// v1 := router.Group("/api/v1")
-	// {
-	// 	userRoutes := v1.Group("/users")
-	// 	{
-	// 		userRoutes.POST("", userHandler.CreateUser)
-	// 		userRoutes.GET("/:id", userHandler.GetUser)
-	// 	}
-	// }
+	// Initialize Handlers
+	userHandler := handler.NewUserHandler(userService)
+	log.Println("User handler initialized.")
 
+	// Setup routes
+	v1 := router.Group("/api/v1")
+	{
+		app_router.SetupUserRoutes(v1, userHandler)
+	}
+
+	// Ping route for health check
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
